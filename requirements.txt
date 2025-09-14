@@ -1,0 +1,6 @@
+gradio==4.44.0
+google-generativeai
+google-search-results
+python-dotenv
+pydantic
+serpapi

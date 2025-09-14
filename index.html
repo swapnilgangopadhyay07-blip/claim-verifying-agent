@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InfoGuard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/feather-icons"></script>
+  <style>
+    body { 
+      margin: 0; 
+      font-family: 'Inter', sans-serif; 
+      display: flex; 
+      flex-direction: column; 
+      min-height: 100vh;
+      background: url('https://t3.ftcdn.net/jpg/02/04/52/72/360_F_204527293_o9ut8AIm2PaXQg22sSqLMH354X8weheJ.jpg') no-repeat center center fixed;
+      background-size: cover;
+      color: #f9f9f9;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: -1;
+    }
+
+    header, footer { 
+      width: 100%; 
+      text-align: center; 
+      padding: 1rem 0; 
+      flex-shrink: 0;
+    }
+    header { 
+      background: rgba(76,40,130,0.9); 
+      color: #fff; 
+      font-size: 2rem; 
+      font-weight: bold; 
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+    footer { 
+      background: rgba(15,17,26,0.9); 
+      color: #888; 
+      font-size: 0.875rem; 
+      position: sticky; 
+      bottom: 0; 
+      box-shadow: 0 -2px 5px rgba(0,0,0,0.3);
+    }
+
+    #chatContainer { 
+      flex: 1; 
+      max-width: 700px; 
+      margin: 1rem auto; 
+      display: flex; 
+      flex-direction: column; 
+      gap: 1rem; 
+      overflow-y: auto; 
+      padding-bottom: 1rem;
+    }
+
+    .chat-bubble { 
+      padding: 1rem 1.25rem; 
+      border-radius: 16px; 
+      white-space: pre-wrap; 
+      position: relative; 
+      max-width: 80%;
+      word-wrap: break-word;
+      line-height: 1.4;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    .user { 
+      background: rgba(107,70,193,0.9); 
+      color: #fff; 
+      align-self: flex-end; 
+      border-bottom-right-radius: 4px; 
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      animation: fadeIn 0.3s forwards;
+    }
+    .ai { 
+      background: rgba(46,46,68,0.85); 
+      color: #f9f9f9; 
+      align-self: flex-start; 
+      border-bottom-left-radius: 4px; 
+      border: 1px solid #444; 
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      animation: floatIn 0.5s forwards;
+    }
+
+    #inputContainer { 
+      display: flex; 
+      max-width: 700px; 
+      margin: 0 auto 1rem; 
+    }
+    #claimInput { 
+      flex: 1; 
+      padding: 0.75rem 1rem; 
+      border-radius: 9999px 0 0 9999px; 
+      background: rgba(30,30,51,0.9); 
+      color: #f9f9f9; 
+      border: none; 
+      outline: none; 
+    }
+    #verifyBtn { 
+      padding: 0.75rem 1rem; 
+      border-radius: 0 9999px 9999px 0; 
+      background: rgba(107,70,193,0.9); 
+      color: #fff; 
+      cursor: pointer; 
+      transition: background 0.2s, transform 0.1s;
+    }
+    #verifyBtn:hover { 
+      background: rgba(85,60,154,0.9); 
+      transform: scale(1.05);
+    }
+
+    .verdict { font-weight: bold; display: block; margin-bottom: 0.5rem; }
+    .green { color: #22c55e; }
+    .red { color: #ef4444; }
+    .yellow { color: #eab308; }
+    a { color: #3b82f6; text-decoration: underline; }
+
+    .typing::after {
+      content: '';
+      display: inline-block;
+      width: 8px;
+      height: 1em;
+      background: #fff;
+      margin-left: 5px;
+      animation: blink 1s infinite;
+      vertical-align: bottom;
+    }
+
+    @keyframes blink {
+      0%, 50%, 100% { opacity: 1; }
+      25%, 75% { opacity: 0; }
+    }
+
+    @keyframes fadeIn {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes floatIn {
+      0% { opacity: 0; transform: translateY(30px); }
+      60% { opacity: 1; transform: translateY(-10px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <header>InfoGuard AI</header>
+
+  <div id="chatContainer"></div>
+
+  <div id="inputContainer">
+    <input type="text" id="claimInput" placeholder="Enter your claim..." />
+    <button id="verifyBtn"><i data-feather="send"></i></button>
+  </div>
+
+  <footer>All rights reserved @ Digital Architects</footer>
+
+  <script type="module">
+    feather.replace();
+    import { Client } from "https://cdn.jsdelivr.net/npm/@gradio/client/+esm";
+
+    const HF_TOKEN = "";
+    const client = await Client.connect("CipherStreak/claim-verifier", { hf_token: HF_TOKEN });
+
+    const claimInput = document.getElementById("claimInput");
+    const verifyBtn = document.getElementById("verifyBtn");
+    const chatContainer = document.getElementById("chatContainer");
+
+    let processing = false;
+
+    verifyBtn.addEventListener("click", sendClaim);
+    claimInput.addEventListener("keypress", e => { if(e.key === "Enter") sendClaim(); });
+
+    async function sendClaim() {
+      if (processing) return;
+      const claim = claimInput.value.trim();
+      if (!claim) return;
+
+      processing = true;
+      claimInput.disabled = true;
+      verifyBtn.disabled = true;
+
+      addBubble(`Claim: ${claim}`, "user");
+      claimInput.value = "";
+
+      const typingBubble = addBubble("InfoGuard AI is analyzing...", "ai");
+      typingBubble.classList.add("typing");
+
+      try {
+        const result = await client.predict("/format_result", { claim });
+        const [mainResult, rationale, sources] = result.data || ["", "", ""];
+
+        let color = "yellow";
+        if(mainResult.includes("Likely True")) color = "green";
+        if(mainResult.includes("Likely False")) color = "red";
+
+        let aiText = mainResult.trim() + "\n\n" + rationale.trim() + "\n\n" + sources.trim();
+        aiText = aiText
+          .replace(/^##  AI Analysis/mg, "<strong> AI Analysis</strong>")
+          .replace(/^##  Top Sources/mg, "<strong> Top Sources</strong>")
+          .replace(/^## .*Verification Result/mg, "<strong>Verification Result</strong>")
+          .replace(/\*\*(.*?)\*\*/g, "$1")
+          .replace(/\n/g, "<br>");
+
+        typingBubble.classList.remove("typing");
+        typingBubble.innerHTML = `<span class="verdict ${color}">${aiText}</span>`;
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+
+      } catch(err) {
+        typingBubble.classList.remove("typing");
+        typingBubble.innerHTML = `❌ Verification failed: ${err.message}`;
+      } finally {
+        claimInput.disabled = false;
+        verifyBtn.disabled = false;
+        claimInput.focus();
+        processing = false;
+      }
+    }
+
+    function addBubble(text, type) {
+      const div = document.createElement("div");
+      div.className = `chat-bubble ${type}`;
+      div.innerHTML = text.replace(/\n/g, "<br>");
+      chatContainer.appendChild(div);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+      return div;
+    }
+  </script>
+</body>
+</html>
